@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         opencode go账号助手
 // @namespace    https://cpa.tlytelec.com/opencode-go
-// @version      0.1.0
+// @version      0.1.1
 // @description  Sync OpenCode Go account metadata, API key, and opt-in cookies to CPA.
 // @license      MIT
 // @homepageURL  https://github.com/kogekiplay/opencode-go-account-helper-userscript
@@ -447,25 +447,50 @@
         ? `，但没有读到认证 Cookie（${userscriptEnvironmentText()} 可能无法读取 HttpOnly Cookie，请使用菜单“诊断 Cookie 读取”确认）`
         : '';
     const message = `已同步：${accountID}${cookieMessage}`;
+    await loadAccounts({ silent: true }).catch(() => {});
     showMessage(message);
     notify(message);
   }
 
-  async function loadAccounts() {
+  async function loadAccounts(options = {}) {
     const result = await request('GET', '/opencode-go/accounts');
     state.accounts = Array.isArray(result.accounts) ? result.accounts : [];
-    showMessage(`已加载 ${state.accounts.length} 个账号`);
+    if (!options.silent) showMessage(`已加载 ${state.accounts.length} 个账号`);
   }
 
-  async function switchAccount(account) {
-    const name = account.alias || account.email || account.workspaceId || account.id;
-    if (
-      !window.confirm(
-        `切换到 ${name}？\n\n这会覆盖当前 opencode.ai Cookie 并刷新页面。请确认当前页面未在执行重要操作。`
-      )
-    ) {
-      return;
-    }
+  function accountWorkspaceID(account) {
+    return account.workspaceId || account['workspace-id'] || '';
+  }
+
+  function accountName(account) {
+    return account.alias || account.email || account.username || accountWorkspaceID(account) || account.id;
+  }
+
+  function accountHasCookie(account) {
+    return Boolean(account.hasCookie || account['has-cookie']);
+  }
+
+  function accountHasApiKey(account) {
+    return Boolean(account.hasApiKey || account['has-api-key']);
+  }
+
+  function accountApiKeySynced(account) {
+    return Boolean(account.apiKeySynced || account['api-key-synced']);
+  }
+
+  function accountApiKeyPreview(account) {
+    return account.apiKeyPreview || account['api-key-preview'] || '';
+  }
+
+  function accountWorkspaceURL(account) {
+    const workspaceID = accountWorkspaceID(account);
+    return workspaceID
+      ? `https://opencode.ai/workspace/${encodeURIComponent(workspaceID)}/go`
+      : 'https://opencode.ai/auth';
+  }
+
+  async function applyAccountCookie(account) {
+    if (!accountHasCookie(account)) throw new Error('该账号没有保存 Cookie');
 
     const result = await request(
       'GET',
@@ -481,9 +506,30 @@
     for (const pair of pairs) {
       await setCookiePair(pair);
     }
+  }
+
+  async function switchAccount(account, options = {}) {
+    const name = accountName(account);
+    const targetURL = accountWorkspaceURL(account);
+    const actionText = options.openWorkspace ? `切换 Cookie 并打开工作区：${targetURL}` : '切换 Cookie 并刷新当前页面';
+    if (
+      !window.confirm(
+        `切换到 ${name}？\n\n${actionText}\n\n这会覆盖当前 opencode.ai Cookie。请确认当前页面未在执行重要操作。`
+      )
+    ) {
+      return;
+    }
+
+    await applyAccountCookie(account);
 
     showMessage(`已切换到：${name}`);
-    window.setTimeout(() => location.reload(), 300);
+    window.setTimeout(() => {
+      if (options.openWorkspace) {
+        window.location.assign(targetURL);
+      } else {
+        location.reload();
+      }
+    }, 300);
   }
 
   function accountRowsHTML() {
@@ -491,19 +537,30 @@
       return '<div class="ocg-empty">还没有加载 CPA 账号</div>';
     }
 
-    return state.accounts
+    const cookieCount = state.accounts.filter(accountHasCookie).length;
+    const summary = `<div class="ocg-account-summary">已保存 Cookie：${cookieCount} / ${state.accounts.length}</div>`;
+    return summary + state.accounts
       .map((account) => {
-        const name = account.alias || account.email || account['workspace-id'] || account.id;
+        const name = accountName(account);
+        const workspaceID = accountWorkspaceID(account);
+        const hasCookie = accountHasCookie(account);
         const meta = [
-          account['api-key-preview'] || '无 API key',
-          account['has-cookie'] ? '有 Cookie' : '无 Cookie',
-          account['api-key-synced'] ? '已同步 provider' : '未同步 provider',
-        ].join(' · ');
+          workspaceID ? `Workspace ${workspaceID}` : 'Workspace 未识别',
+          accountApiKeyPreview(account) || (accountHasApiKey(account) ? 'API key 已保存' : '无 API key'),
+          hasCookie ? 'Cookie 已保存' : '无 Cookie',
+          accountApiKeySynced(account) ? '已写入 provider' : '未写入 provider',
+        ];
         return `
-          <button class="ocg-account" data-switch="${escapeHTML(account.id)}" type="button">
-            <span>${escapeHTML(name)}</span>
-            <small>${escapeHTML(meta)}</small>
-          </button>
+          <article class="ocg-account" data-account-id="${escapeHTML(account.id)}">
+            <div class="ocg-account-main">
+              <span>${escapeHTML(name)}</span>
+              <small>${escapeHTML(meta.join(' · '))}</small>
+            </div>
+            <div class="ocg-account-actions">
+              <button data-switch="${escapeHTML(account.id)}" type="button" ${hasCookie ? '' : 'disabled'}>切换 Cookie</button>
+              <button data-open-workspace="${escapeHTML(account.id)}" type="button" ${hasCookie ? '' : 'disabled'}>切换并打开工作区</button>
+            </div>
+          </article>
         `;
       })
       .join('');
@@ -525,7 +582,7 @@
       </label>
       <label class="ocg-row">
         <input data-field="allowCookieUpload" type="checkbox" ${getSetting('allowCookieUpload', true) ? 'checked' : ''}>
-        <span>允许上传 Cookie（默认关闭）</span>
+        <span>允许上传 Cookie（默认开启）</span>
       </label>
       <div class="ocg-actions">
         <button data-action="sync" type="button" ${state.busy ? 'disabled' : ''}>同步当前账号</button>
@@ -562,6 +619,12 @@
         if (account) withBusy(() => switchAccount(account));
       });
     });
+    state.panel.querySelectorAll('[data-open-workspace]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const account = state.accounts.find((item) => item.id === button.dataset.openWorkspace);
+        if (account) withBusy(() => switchAccount(account, { openWorkspace: true }));
+      });
+    });
   }
 
   function installStyle() {
@@ -584,9 +647,12 @@
       #opencode-go-account-helper .ocg-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
       #opencode-go-account-helper .ocg-message{min-height:18px;margin-top:8px;color:#57606a;overflow-wrap:anywhere}
       #opencode-go-account-helper .ocg-accounts{display:grid;gap:6px;max-height:240px;margin-top:8px;overflow:auto}
-      #opencode-go-account-helper .ocg-account{display:grid;gap:2px;width:100%;text-align:left}
+      #opencode-go-account-helper .ocg-account-summary{padding:7px 8px;border-radius:6px;background:#f6f8fa;color:#57606a}
+      #opencode-go-account-helper .ocg-account{display:grid;gap:8px;width:100%;padding:8px;border:1px solid #d0d7de;border-radius:8px;background:#fff}
+      #opencode-go-account-helper .ocg-account-main{display:grid;gap:2px;text-align:left}
       #opencode-go-account-helper .ocg-account span{overflow-wrap:anywhere}
       #opencode-go-account-helper .ocg-account small{color:#57606a}
+      #opencode-go-account-helper .ocg-account-actions{display:flex;flex-wrap:wrap;gap:6px}
       #opencode-go-account-helper .ocg-empty{padding:10px;border:1px dashed #d0d7de;border-radius:6px;color:#57606a;text-align:center}
     `;
     document.head.appendChild(style);
@@ -602,6 +668,9 @@
       state.panel.hidden = false;
     }
     renderPanel();
+    if (!state.busy && managementKey().trim() && state.accounts.length === 0) {
+      withBusy(() => loadAccounts({ silent: true })).catch(() => {});
+    }
   }
 
   function togglePanel() {
