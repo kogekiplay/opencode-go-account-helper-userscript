@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         opencode go账号助手
 // @namespace    https://cpa.tlytelec.com/opencode-go
-// @version      0.1.3
+// @version      0.1.4
 // @description  Sync OpenCode Go account metadata, API key, and opt-in cookies to CPA.
 // @license      MIT
 // @homepageURL  https://github.com/kogekiplay/opencode-go-account-helper-userscript
@@ -363,21 +363,28 @@
     notify(message, `${SCRIPT_NAME} - Cookie 诊断`);
   }
 
+  function cookieURL(cookie) {
+    const domain = String(cookie.domain || 'opencode.ai').replace(/^\./, '') || 'opencode.ai';
+    const path = String(cookie.path || '/');
+    return `https://${domain}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
   function deleteCookie(cookie) {
     if (typeof GM_cookie !== 'undefined' && GM_cookie.delete) {
       return new Promise((resolve) => {
-        GM_cookie.delete(
-          {
-            url: 'https://opencode.ai/',
-            name: cookie.name,
-          },
-          () => resolve()
-        );
+        const details = {
+          url: cookieURL(cookie),
+          name: cookie.name,
+        };
+        if (cookie.storeId) details.storeId = cookie.storeId;
+        if (cookie.partitionKey) details.partitionKey = cookie.partitionKey;
+        GM_cookie.delete(details, () => resolve());
       });
     }
 
-    document.cookie = `${cookie.name}=; domain=.opencode.ai; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-    document.cookie = `${cookie.name}=; domain=opencode.ai; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    const path = cookie.path || '/';
+    document.cookie = `${cookie.name}=; domain=.opencode.ai; path=${path}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    document.cookie = `${cookie.name}=; domain=opencode.ai; path=${path}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
     return Promise.resolve();
   }
 
@@ -385,6 +392,15 @@
     const workspaceID = await detectWorkspaceID();
     const cookies = await listCookies(workspaceID).catch(() => documentCookieObjects());
     await Promise.all(cookies.map((cookie) => deleteCookie(cookie)));
+  }
+
+  async function clearCookiesAndOpenLogin() {
+    if (!window.confirm('清除 OpenCode Cookie 并打开登录页？')) return;
+    await clearCurrentCookies();
+    showMessage('已清除 OpenCode Cookie');
+    window.setTimeout(() => {
+      window.location.assign('https://opencode.ai/auth');
+    }, 300);
   }
 
   function parseCookiePairs(cookieString) {
@@ -578,6 +594,7 @@
       <div class="ocg-actions">
         <button data-action="sync" type="button" ${state.busy ? 'disabled' : ''}>同步当前账号</button>
         <button data-action="load" type="button" ${state.busy ? 'disabled' : ''}>拉取 CPA 账号</button>
+        <button data-action="clear-cookies" type="button" ${state.busy ? 'disabled' : ''}>清除 Cookie</button>
       </div>
       <div class="ocg-message">${escapeHTML(state.message || '')}</div>
       <div class="ocg-accounts">${accountRowsHTML()}</div>
@@ -604,6 +621,9 @@
     state.panel
       .querySelector('[data-action="load"]')
       .addEventListener('click', () => withBusy(loadAccounts));
+    state.panel
+      .querySelector('[data-action="clear-cookies"]')
+      .addEventListener('click', () => withBusy(clearCookiesAndOpenLogin));
     state.panel.querySelectorAll('[data-switch-account]').forEach((button) => {
       button.addEventListener('click', () => {
         const account = state.accounts.find((item) => item.id === button.dataset.switchAccount);
@@ -692,6 +712,7 @@
   GM_registerMenuCommand('打开 OpenCode Go 账号助手', openPanel);
   GM_registerMenuCommand('同步当前 OpenCode Go 账号', () => withBusy(syncCurrentAccount));
   GM_registerMenuCommand('拉取 CPA OpenCode Go 账号', () => withBusy(loadAccounts));
+  GM_registerMenuCommand('清除 OpenCode Cookie', () => withBusy(clearCookiesAndOpenLogin));
   GM_registerMenuCommand('诊断 Cookie 读取', () => withBusy(diagnoseCookieRead));
 
   if (document.readyState === 'loading') {
