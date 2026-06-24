@@ -7,7 +7,7 @@
 1. 安装 Tampermonkey。
 2. 从 GitHub raw 地址安装或新建脚本并粘贴 `opencode-go-account-helper.user.js`。
 3. 打开 `https://opencode.ai/` 并登录目标账号。
-4. 从 Tampermonkey 菜单打开「opencode go账号助手」。
+4. 打开 `https://opencode.ai/` 后，页面右下角会自动显示「opencode go账号助手」。
 5. 填写 CPA 地址，例如 `https://cpa.tlytelec.com:18443`，脚本会自动拼接 management API 路径。
 6. 填写 CPA 管理密钥。
 
@@ -23,8 +23,8 @@ https://raw.githubusercontent.com/kogekiplay/opencode-go-account-helper-userscri
 - OpenCode Go 用量由 CPA 后端使用已保存 Cookie 刷新，脚本不解析页面额度。
 - Cookie 上传默认开启，可手动取消「允许上传 Cookie」。
 - 从 CPA 拉取已保存账号列表，并显示每个账号的 Workspace、Cookie、API key、provider 同步状态。
-- 可对任意已保存 Cookie 的账号执行「切换 Cookie」。
-- 可对任意已保存 Cookie 的账号执行「切换并打开工作区」，脚本会写入对应 Cookie 并打开该账号的 OpenCode Go 工作区页面。
+- 可对任意已保存 Cookie 的账号执行「切换账号」，脚本会写入对应 Cookie 并打开该账号的 OpenCode Go 工作区页面。
+- 面板默认展开显示，点击右上角关闭按钮后会收起为右下角小按钮。
 
 ## 安全边界
 

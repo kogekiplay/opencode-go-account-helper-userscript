@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         opencode go账号助手
 // @namespace    https://cpa.tlytelec.com/opencode-go
-// @version      0.1.1
+// @version      0.1.2
 // @description  Sync OpenCode Go account metadata, API key, and opt-in cookies to CPA.
 // @license      MIT
 // @homepageURL  https://github.com/kogekiplay/opencode-go-account-helper-userscript
@@ -30,6 +30,7 @@
 
   const state = {
     panel: null,
+    launcher: null,
     accounts: [],
     message: '',
     busy: false,
@@ -508,15 +509,10 @@
     }
   }
 
-  async function switchAccount(account, options = {}) {
+  async function switchAccount(account) {
     const name = accountName(account);
     const targetURL = accountWorkspaceURL(account);
-    const actionText = options.openWorkspace ? `切换 Cookie 并打开工作区：${targetURL}` : '切换 Cookie 并刷新当前页面';
-    if (
-      !window.confirm(
-        `切换到 ${name}？\n\n${actionText}\n\n这会覆盖当前 opencode.ai Cookie。请确认当前页面未在执行重要操作。`
-      )
-    ) {
+    if (!window.confirm(`切换到 ${name} 并打开工作区？`)) {
       return;
     }
 
@@ -524,11 +520,7 @@
 
     showMessage(`已切换到：${name}`);
     window.setTimeout(() => {
-      if (options.openWorkspace) {
-        window.location.assign(targetURL);
-      } else {
-        location.reload();
-      }
+      window.location.assign(targetURL);
     }, 300);
   }
 
@@ -557,8 +549,7 @@
               <small>${escapeHTML(meta.join(' · '))}</small>
             </div>
             <div class="ocg-account-actions">
-              <button data-switch="${escapeHTML(account.id)}" type="button" ${hasCookie ? '' : 'disabled'}>切换 Cookie</button>
-              <button data-open-workspace="${escapeHTML(account.id)}" type="button" ${hasCookie ? '' : 'disabled'}>切换并打开工作区</button>
+              <button data-switch-account="${escapeHTML(account.id)}" type="button" ${hasCookie ? '' : 'disabled'}>切换账号</button>
             </div>
           </article>
         `;
@@ -605,7 +596,7 @@
     state.panel
       .querySelector('[data-action="close"]')
       .addEventListener('click', () => {
-        state.panel.hidden = true;
+        collapsePanel();
       });
     state.panel
       .querySelector('[data-action="sync"]')
@@ -613,16 +604,10 @@
     state.panel
       .querySelector('[data-action="load"]')
       .addEventListener('click', () => withBusy(loadAccounts));
-    state.panel.querySelectorAll('[data-switch]').forEach((button) => {
+    state.panel.querySelectorAll('[data-switch-account]').forEach((button) => {
       button.addEventListener('click', () => {
-        const account = state.accounts.find((item) => item.id === button.dataset.switch);
+        const account = state.accounts.find((item) => item.id === button.dataset.switchAccount);
         if (account) withBusy(() => switchAccount(account));
-      });
-    });
-    state.panel.querySelectorAll('[data-open-workspace]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const account = state.accounts.find((item) => item.id === button.dataset.openWorkspace);
-        if (account) withBusy(() => switchAccount(account, { openWorkspace: true }));
       });
     });
   }
@@ -654,12 +639,33 @@
       #opencode-go-account-helper .ocg-account small{color:#57606a}
       #opencode-go-account-helper .ocg-account-actions{display:flex;flex-wrap:wrap;gap:6px}
       #opencode-go-account-helper .ocg-empty{padding:10px;border:1px dashed #d0d7de;border-radius:6px;color:#57606a;text-align:center}
+      #opencode-go-account-helper-launcher{position:fixed;right:16px;bottom:16px;z-index:2147483647;min-height:34px;padding:7px 11px;border:1px solid #d0d7de;border-radius:999px;background:#fff;color:#1f2328;box-shadow:0 10px 28px rgba(0,0,0,.16);cursor:pointer;font:13px/1.3 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      #opencode-go-account-helper-launcher:hover{background:#f6f8fa}
     `;
     document.head.appendChild(style);
   }
 
+  function ensureLauncher() {
+    installStyle();
+    if (!state.launcher) {
+      state.launcher = document.createElement('button');
+      state.launcher.id = 'opencode-go-account-helper-launcher';
+      state.launcher.type = 'button';
+      state.launcher.textContent = '账号助手';
+      state.launcher.addEventListener('click', openPanel);
+      document.body.appendChild(state.launcher);
+    }
+    return state.launcher;
+  }
+
+  function collapsePanel() {
+    if (state.panel) state.panel.hidden = true;
+    ensureLauncher().hidden = false;
+  }
+
   function openPanel() {
     installStyle();
+    ensureLauncher().hidden = true;
     if (!state.panel) {
       state.panel = document.createElement('div');
       state.panel.id = 'opencode-go-account-helper';
@@ -673,16 +679,18 @@
     }
   }
 
-  function togglePanel() {
-    if (state.panel && !state.panel.hidden) {
-      state.panel.hidden = true;
-      return;
-    }
+  function start() {
     openPanel();
   }
 
-  GM_registerMenuCommand('打开 OpenCode Go 账号助手', togglePanel);
+  GM_registerMenuCommand('打开 OpenCode Go 账号助手', openPanel);
   GM_registerMenuCommand('同步当前 OpenCode Go 账号', () => withBusy(syncCurrentAccount));
   GM_registerMenuCommand('拉取 CPA OpenCode Go 账号', () => withBusy(loadAccounts));
   GM_registerMenuCommand('诊断 Cookie 读取', () => withBusy(diagnoseCookieRead));
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
 })();
