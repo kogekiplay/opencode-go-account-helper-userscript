@@ -24,7 +24,7 @@ https://raw.githubusercontent.com/kogekiplay/opencode-go-account-helper-userscri
 - Cookie 上传默认开启，可手动取消「允许上传 Cookie」。
 - 从 CPA 拉取已保存账号列表，并显示每个账号的 Workspace、Cookie、API key、provider 同步状态。
 - 可对任意已保存 Cookie 的账号执行「切换账号」，脚本会写入对应 Cookie 并打开该账号的 OpenCode Go 工作区页面。
-- 面板默认展开显示，点击右上角关闭按钮后会收起为右下角小按钮。
+- 面板会记住上次展开或折叠状态；点击右上角关闭按钮后会收起为右下角小按钮。
 
 ## 安全边界
 

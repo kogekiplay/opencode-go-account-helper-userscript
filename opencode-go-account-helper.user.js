@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         opencode go账号助手
 // @namespace    https://cpa.tlytelec.com/opencode-go
-// @version      0.1.2
+// @version      0.1.3
 // @description  Sync OpenCode Go account metadata, API key, and opt-in cookies to CPA.
 // @license      MIT
 // @homepageURL  https://github.com/kogekiplay/opencode-go-account-helper-userscript
@@ -660,11 +660,13 @@
 
   function collapsePanel() {
     if (state.panel) state.panel.hidden = true;
+    setSetting('panelCollapsed', true);
     ensureLauncher().hidden = false;
   }
 
   function openPanel() {
     installStyle();
+    setSetting('panelCollapsed', false);
     ensureLauncher().hidden = true;
     if (!state.panel) {
       state.panel = document.createElement('div');
@@ -680,6 +682,10 @@
   }
 
   function start() {
+    if (getSetting('panelCollapsed', false)) {
+      ensureLauncher().hidden = false;
+      return;
+    }
     openPanel();
   }
 
