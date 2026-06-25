@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         opencode go账号助手
-// @namespace    https://cpa.tlytelec.com/opencode-go
-// @version      0.1.4
+// @namespace    https://github.com/kogekiplay/opencode-go-account-helper-userscript
+// @version      0.1.5
 // @description  Sync OpenCode Go account metadata, API key, and opt-in cookies to CPA.
 // @license      MIT
 // @homepageURL  https://github.com/kogekiplay/opencode-go-account-helper-userscript
@@ -23,7 +23,8 @@
   'use strict';
 
   const SCRIPT_NAME = 'opencode go账号助手';
-  const DEFAULT_CPA_BASE = 'https://cpa.tlytelec.com:18443';
+  const DEFAULT_CPA_BASE = '';
+  const CPA_BASE_PLACEHOLDER = 'https://your-cpa.example.com';
   const MANAGEMENT_PATH = '/v0/management';
   const WORKSPACE_PATTERN = /\/workspace\/(wrk_[A-Za-z0-9]+)/;
   const API_KEY_PATTERN = /sk-[A-Za-z0-9_-]{20,}/;
@@ -43,10 +44,6 @@
     return String(getSetting('cpaBase', DEFAULT_CPA_BASE))
       .trim()
       .replace(/\/+$/, '');
-  }
-
-  function managementBaseURL() {
-    return `${cpaBase()}${MANAGEMENT_PATH}`;
   }
 
   function managementKey() {
@@ -133,6 +130,13 @@
   function request(method, path, body) {
     return new Promise((resolve, reject) => {
       const headers = { 'Content-Type': 'application/json' };
+      const base = cpaBase();
+      if (!base) {
+        const message = '请先填写 CPA 地址';
+        showPanelMessage(message, 'cpaBase');
+        reject(new Error(message));
+        return;
+      }
       const key = managementKey().trim();
       if (!key) {
         const message = '请先填写管理密钥';
@@ -144,7 +148,7 @@
 
       GM_xmlhttpRequest({
         method,
-        url: `${managementBaseURL()}${path}`,
+        url: `${base}${MANAGEMENT_PATH}${path}`,
         headers,
         data: body ? JSON.stringify(body) : undefined,
         timeout: 30000,
@@ -582,7 +586,7 @@
         <button class="ocg-close" data-action="close" type="button">×</button>
       </div>
       <label>CPA 地址
-        <input data-field="cpaBase" value="${escapeHTML(cpaBase())}" placeholder="${escapeHTML(DEFAULT_CPA_BASE)}">
+        <input data-field="cpaBase" value="${escapeHTML(cpaBase())}" placeholder="${escapeHTML(CPA_BASE_PLACEHOLDER)}">
       </label>
       <label>管理密钥
         <input data-field="managementKey" type="password" value="${escapeHTML(managementKey())}" autocomplete="off">

@@ -8,7 +8,7 @@
 2. 从 GitHub raw 地址安装或新建脚本并粘贴 `opencode-go-account-helper.user.js`。
 3. 打开 `https://opencode.ai/` 并登录目标账号。
 4. 打开 `https://opencode.ai/` 后，页面右下角会自动显示「opencode go账号助手」。
-5. 填写 CPA 地址，例如 `https://cpa.tlytelec.com:18443`，脚本会自动拼接 management API 路径。
+5. 填写你的 CPA 地址，例如 `https://your-cpa.example.com`，脚本会自动拼接 management API 路径。
 6. 填写 CPA 管理密钥。
 
 Greasy Fork 导入地址：
